@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 
-# Run all tests with different build tags and the race detector enabled.
-set -e
+# Run the standard-library-only test suite with the race detector enabled.
+set -euo pipefail
 
-buildTags=('' 'jsoniter' 'go_json' 'jsoniter,go_json')
-for t in "${buildTags[@]}"; do
-  echo "
-Running tests with build tag: $t"
-  go test -v -race ./... -tags="$t"
-done
+export GOWORK=off
+test "$(go list -m all)" = "github.com/FloraSync/go-jsonc"
+go test -v -race ./...

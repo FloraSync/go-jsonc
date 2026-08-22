@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jsonc_test
+package json_test
 
 import (
 	"fmt"
 
-	"github.com/marcozac/go-jsonc"
+	"github.com/FloraSync/go-jsonc"
 )
 
 func ExampleUnmarshal() {
@@ -25,7 +25,7 @@ func ExampleUnmarshal() {
 
 	data := []byte(`{/* comment */"foo": "bar"}`)
 
-	err := jsonc.Unmarshal(data, &v)
+	err := json.Unmarshal(data, &v)
 	if err != nil {
 		panic(err)
 	}
@@ -39,12 +39,12 @@ func ExampleUnmarshal() {
 func ExampleUnmarshal_sanitizeError() {
 	var v interface{}
 
-	invalid := []byte(`{/* comment */"foo": "invalid utf8"}`)
-	invalid = append(invalid, []byte("\xa5")...)
+	invalid := append([]byte("/*"), byte(0xa5))
+	invalid = append(invalid, []byte("*/{}")...)
 
-	err := jsonc.Unmarshal(invalid, &v)
+	err := json.Unmarshal(invalid, &v)
 	fmt.Println(err)
 
 	// Output:
-	// jsonc: invalid UTF-8
+	// jsonc: invalid UTF-8 in comment at byte 3
 }

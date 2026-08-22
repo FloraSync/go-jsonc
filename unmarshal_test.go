@@ -13,103 +13,229 @@
 // limitations under the License.
 
 //go:build !uncommented_test
-// +build !uncommented_test
 
-package jsonc
+package json
 
 import (
+	"bytes"
+	stdjson "encoding/json"
+	"errors"
 	"reflect"
 	"runtime"
-	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestUnmarshal(t *testing.T) {
+func TestUnmarshalFixtures(t *testing.T) {
 	t.Parallel()
-	for _, tt := range unmarshalTestTargets {
-		tt := tt
-		name := runtime.FuncForPC(reflect.ValueOf(tt).Pointer()).Name()
-		t.Run(name[strings.LastIndex(name, ".")+10:], func(t *testing.T) {
-			t.Parallel()
-			tt(t)
-		})
-	}
+
+	UnmarshalOK(t, _small, Small{})
+	UnmarshalOK(t, _medium, Medium{})
 }
 
-var unmarshalTestTargets = [...]func(t *testing.T){
-	UnmarshalSmall,
-	UnmarshalMedium,
-}
-
-func UnmarshalSmall(t *testing.T) {
-	unmarshalTest(t, _small, Small{})
-}
-
-func UnmarshalMedium(t *testing.T) {
-	unmarshalTest(t, _medium, Medium{})
-}
-
-func unmarshalTest[T DataType](t *testing.T, data []byte, dt T) {
+func UnmarshalOK[T DataType](t testing.TB, data []byte, initial T) {
 	t.Helper()
-	for _, tt := range []struct {
-		Name string
-		Func func(t require.TestingT, data []byte, dt T)
+	got := initial
+	if err := Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	FieldsValue(t, got)
+}
+
+func TestUnmarshalJSONCProfile(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{
+		// line
+		"array": [1, 2, /* block */],
+		"url": "https://example.test/a/*b*/",
+	}`)
+	var got struct {
+		Array []int  `json:"array"`
+		URL   string `json:"url"`
+	}
+	if err := Unmarshal(input, &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	want := struct {
+		Array []int  `json:"array"`
+		URL   string `json:"url"`
 	}{
-		{"OK", UnmarshalOK[T]},
-		{"Error", UnmarshalError[T]},
-	} {
+		Array: []int{1, 2},
+		URL:   "https://example.test/a/*b*/",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Unmarshal() = %#v, want %#v", got, want)
+	}
+}
+
+func TestUnmarshalStrictBehaviorMatchesEncodingJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{name: "object", data: []byte(`{"a":1,"b":[true,null,"x"]}`)},
+		{name: "top-level scalar", data: []byte(`123.5`)},
+		{name: "invalid UTF-8 in string", data: []byte{'{', '"', 's', '"', ':', '"', 0xff, '"', '}'}},
+		{name: "invalid trailing data", data: []byte(`{"a":1} false`)},
+		{name: "invalid token", data: []byte(`tru`)},
+	}
+
+	for _, tt := range tests {
 		tt := tt
-		t.Run(tt.Name, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			tt.Func(t, data, dt)
+			var got any
+			var want any
+			gotErr := Unmarshal(tt.data, &got)
+			wantErr := stdjson.Unmarshal(tt.data, &want)
+			if !sameError(gotErr, wantErr) {
+				t.Fatalf("Unmarshal() error = %T %v, encoding/json = %T %v", gotErr, gotErr, wantErr, wantErr)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("Unmarshal() value = %#v, encoding/json = %#v", got, want)
+			}
 		})
 	}
 }
 
-func UnmarshalOK[T DataType](t require.TestingT, data []byte, dt T) {
-	j := dt
-	assert.NoError(t, Unmarshal(data, &j), "unmarshal failed")
-	FieldsValue(t, j)
+func sameError(got, want error) bool {
+	if got == nil || want == nil {
+		return got == nil && want == nil
+	}
+	return reflect.TypeOf(got) == reflect.TypeOf(want) && got.Error() == want.Error()
 }
 
-func UnmarshalError[T DataType](t require.TestingT, data []byte, dt T) {
-	j := dt
-	assert.ErrorIs(t, Unmarshal(append(data, _invalidChar...), &j), ErrInvalidUTF8, "invalid UTF-8 was not detected")
+func TestUnmarshalMalformedUTF8OutsideCommentUsesEncodingJSON(t *testing.T) {
+	t.Parallel()
+
+	input := append(bytes.Clone(_small), _invalidChar...)
+	var got Small
+	err := Unmarshal(input, &got)
+	if err == nil {
+		t.Fatal("Unmarshal() error = nil, want standard syntax error")
+	}
+	if errors.Is(err, ErrInvalidUTF8) {
+		t.Fatalf("Unmarshal() error = %v, malformed byte is outside a comment", err)
+	}
+
+	normalized, sanitizeErr := Sanitize(input)
+	if sanitizeErr != nil {
+		t.Fatalf("Sanitize() error = %v", sanitizeErr)
+	}
+	var want Small
+	wantErr := stdjson.Unmarshal(normalized, &want)
+	if !sameError(err, wantErr) {
+		t.Fatalf("Unmarshal() error = %T %v, encoding/json = %T %v", err, err, wantErr, wantErr)
+	}
+}
+
+func TestUnmarshalJSONCErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		data []byte
+		want error
+	}{
+		{name: "unterminated block", data: []byte(`{"a":1} /*`), want: ErrUnterminatedBlockComment},
+		{name: "invalid line UTF-8", data: []byte{'/', '/', 0xff, '\n', '1'}, want: ErrInvalidUTF8},
+		{name: "invalid block UTF-8", data: []byte{'/', '*', 0xff, '*', '/', '1'}, want: ErrInvalidUTF8},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var destination any
+			err := Unmarshal(tt.data, &destination)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("Unmarshal() error = %v, want errors.Is(_, %v)", err, tt.want)
+			}
+		})
+	}
+}
+
+type recordingUnmarshaler struct {
+	data []byte
+}
+
+func (r *recordingUnmarshaler) UnmarshalJSON(data []byte) error {
+	r.data = append(r.data[:0], data...)
+	return nil
+}
+
+func TestUnmarshalCallbacksReceiveNormalizedJSON(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{"value":[1,/*c*/]}`)
+	var got struct {
+		Value recordingUnmarshaler `json:"value"`
+	}
+	if err := Unmarshal(input, &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	want := "[1" + string(bytes.Repeat([]byte{' '}, 6)) + "]"
+	if string(got.Value.data) != want {
+		t.Fatalf("UnmarshalJSON() data = %q, want %q", got.Value.data, want)
+	}
+
+	var raw RawMessage
+	if err := Unmarshal([]byte(`/*c*/[1,]`), &raw); err != nil {
+		t.Fatalf("Unmarshal(RawMessage) error = %v", err)
+	}
+	if string(raw) != "[1 ]" {
+		t.Fatalf("RawMessage = %q, want %q", raw, "[1 ]")
+	}
+}
+
+func TestUnmarshalSyntaxOffsetMapsToOriginalInput(t *testing.T) {
+	t.Parallel()
+
+	input := []byte("{\n// c\n\"a\": nope\n}")
+	normalized, err := Sanitize(input)
+	if err != nil {
+		t.Fatalf("Sanitize() error = %v", err)
+	}
+	var got any
+	gotErr := Unmarshal(input, &got)
+	var want any
+	wantErr := stdjson.Unmarshal(normalized, &want)
+	if !sameError(gotErr, wantErr) {
+		t.Fatalf("Unmarshal() error = %T %v, encoding/json = %T %v", gotErr, gotErr, wantErr, wantErr)
+	}
+	var syntaxErr *SyntaxError
+	if !errors.As(gotErr, &syntaxErr) {
+		t.Fatalf("Unmarshal() error = %T, want *SyntaxError", gotErr)
+	}
+	if syntaxErr.Offset <= 0 || syntaxErr.Offset > int64(len(input)) {
+		t.Fatalf("SyntaxError.Offset = %d, input length = %d", syntaxErr.Offset, len(input))
+	}
 }
 
 func BenchmarkUnmarshal(b *testing.B) {
-	b.Run("Small", func(b *testing.B) {
-		b.Run("Commented", func(b *testing.B) {
-			benchmarkUnmarshal(b, _small, Small{})
-		})
-		b.Run("UnCommented", func(b *testing.B) {
-			benchmarkUnmarshal(b, _smallUncommented, Small{})
-		})
-		b.Run("NoCommentRunes", func(b *testing.B) {
-			benchmarkUnmarshal(b, _smallNoCommentRunes, SmallNoCommentRunes{})
-		})
-	})
-	b.Run("Medium", func(b *testing.B) {
-		b.Run("Commented", func(b *testing.B) {
-			benchmarkUnmarshal(b, _medium, Medium{})
-		})
-		b.Run("UnCommented", func(b *testing.B) {
-			benchmarkUnmarshal(b, _mediumUncommented, Medium{})
-		})
-		b.Run("NoCommentRunes", func(b *testing.B) {
-			benchmarkUnmarshal(b, _mediumNoCommentRunes, MediumNoCommentRunes{})
-		})
-	})
-}
+	benchmarks := []struct {
+		name string
+		data []byte
+	}{
+		{name: "Small/Commented", data: _small},
+		{name: "Small/Strict", data: _smallUncommented},
+		{name: "Medium/Commented", data: _medium},
+		{name: "Medium/Strict", data: _mediumUncommented},
+	}
 
-func benchmarkUnmarshal[T DataType](b *testing.B, data []byte, dt T) {
-	b.Helper()
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			UnmarshalOK(b, data, dt)
-		}
-	})
+	for _, benchmark := range benchmarks {
+		benchmark := benchmark
+		b.Run(benchmark.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				var destination any
+				if err := Unmarshal(benchmark.data, &destination); err != nil {
+					b.Fatalf("Unmarshal() error = %v", err)
+				}
+				runtime.KeepAlive(destination)
+			}
+		})
+	}
 }

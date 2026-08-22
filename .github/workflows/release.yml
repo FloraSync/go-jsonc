@@ -1,29 +1,101 @@
 name: Release
+
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing immutable SemVer tag to release
+        required: true
+        type: string
+      candidate_sha:
+        description: Full commit SHA approved by technical and legal review
+        required: true
+        type: string
+      legal_clearance_ref:
+        description: Approved non-privileged Phase 7 clearance reference
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  identify:
+    name: identify-candidate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.candidate.outputs.tag }}
+      sha: ${{ steps.candidate.outputs.sha }}
+    steps:
+      - name: Checkout candidate history without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.candidate_sha }}
+      - name: Validate immutable candidate identity
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ inputs.candidate_sha }}
+          LEGAL_CLEARANCE_REF: ${{ inputs.legal_clearance_ref }}
+        run: ./scripts/release-validate.sh remote
+
+  verify:
+    name: verify-candidate
+    needs: identify
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-verify.yml
+    with:
+      candidate_tag: ${{ needs.identify.outputs.tag }}
+      candidate_sha: ${{ needs.identify.outputs.sha }}
+
+  publish:
+    name: publish-approved-candidate
+    needs:
+      - identify
+      - verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout the verified commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version-file: 'go.mod'
-      - name: Force fetch upstream tags
-        run: git fetch --tags --force
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          version: latest
-          args: release --clean
+          persist-credentials: false
+          ref: ${{ needs.identify.outputs.sha }}
+      - name: Revalidate tag immediately before publication
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.identify.outputs.tag }}
+          RELEASE_SHA: ${{ needs.identify.outputs.sha }}
+          LEGAL_CLEARANCE_REF: ${{ inputs.legal_clearance_ref }}
+        run: ./scripts/release-validate.sh remote
+      - name: Setup Go 1.26
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: '1.26.x'
+          check-latest: true
+          cache: false
+      - name: Install pinned GoReleaser
+        env:
+          GOBIN: ${{ runner.temp }}/bin
+        run: |
+          go install github.com/goreleaser/goreleaser/v2@v2.12.7
+          printf '%s\n' "${GOBIN}" >> "$GITHUB_PATH"
+      - name: Publish once from the verified tag
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: goreleaser release --clean

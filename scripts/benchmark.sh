@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
-# Run all benchmarks with different build tags.
-set -e
+# Run all benchmarks against the standard-library facade.
+set -euo pipefail
+
+export GOWORK=off
 
 # Set the path to the temporary directory for the benchmark results.
 # The path is relative to the root of the repository.
@@ -17,25 +19,13 @@ echo "*" >"$benchmarkDir/.gitignore"
 # It may be overridden by passing a value as the first argument.
 count=${1:-10}
 
-# Run the benchmarks for the standard library.
+# Run the JSONC normalization and facade benchmarks.
 echo "
-Running benchmarks for the standard library"
+Running JSONC facade benchmarks"
 go test -run='^$' -bench=. -benchmem -count "$count" |
-  tee "$benchmarkDir/standard_library.txt"
+  tee "$benchmarkDir/jsonc_profile.txt"
 
-# Run Unmarshal benchmarks
-buildTags=('' 'jsoniter' 'go_json')
-for t in "${buildTags[@]}"; do
-  f="$t"
-  [ -n "$f" ] || f="standard_library"
-
-  [ "$f" != "standard_library" ] && echo "
-Running Unmarshal benchmarks with build tag: '$t'" &&
-    go test -run='^$' -bench=BenchmarkUnmarshal -benchmem -count "$count" -tags="$t" |
-    tee "$benchmarkDir/$f.txt"
-
-  echo "
-Running Unmarshal benchmarks for uncommented JSON with build tag: '$t'"
-  go test -run='^$' -bench=BenchmarkUnmarshal -benchmem -count "$count" -tags="$t,uncommented_test" |
-    tee "$benchmarkDir/$f"_uncommented.txt
-done
+echo "
+Running encoding/json baseline benchmarks on uncommented JSON"
+go test -run='^$' -bench=BenchmarkUnmarshal -benchmem -count "$count" -tags=uncommented_test |
+  tee "$benchmarkDir/encoding_json.txt"

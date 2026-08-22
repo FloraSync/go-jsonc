@@ -15,51 +15,44 @@
 //go:build uncommented_test
 // +build uncommented_test
 
-package jsonc
+package json
 
 import (
+	stdjson "encoding/json"
 	"testing"
-
-	"github.com/marcozac/go-jsonc/internal/json"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // This file does not contain real benchmarks, but it is used to compare the
 // performances over the standard functions on uncommented JSON data.
 
-// Check standard json.Unmarshal (or jsoniter / go-json / ...) performances
-// with uncommented JSON data.
+// Check standard json.Unmarshal performance with uncommented JSON data.
 func BenchmarkUnmarshal(b *testing.B) {
 	b.Run("Small", func(b *testing.B) {
 		b.Run("UnCommented", func(b *testing.B) {
-			benchmarkUnmarshal(b, _smallUncommented, Small{})
+			benchmarkStandardUnmarshal(b, _smallUncommented, Small{})
 		})
 		b.Run("NoCommentRunes", func(b *testing.B) {
-			benchmarkUnmarshal(b, _smallNoCommentRunes, SmallNoCommentRunes{})
+			benchmarkStandardUnmarshal(b, _smallNoCommentRunes, SmallNoCommentRunes{})
 		})
 	})
 	b.Run("Medium", func(b *testing.B) {
 		b.Run("UnCommented", func(b *testing.B) {
-			benchmarkUnmarshal(b, _mediumUncommented, Medium{})
+			benchmarkStandardUnmarshal(b, _mediumUncommented, Medium{})
 		})
 		b.Run("NoCommentRunes", func(b *testing.B) {
-			benchmarkUnmarshal(b, _mediumNoCommentRunes, MediumNoCommentRunes{})
+			benchmarkStandardUnmarshal(b, _mediumNoCommentRunes, MediumNoCommentRunes{})
 		})
 	})
 }
 
-func benchmarkUnmarshal[T DataType](b *testing.B, data []byte, dt T) {
+func benchmarkStandardUnmarshal[T DataType](b *testing.B, data []byte, initial T) {
 	b.Helper()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			UnmarshalOK(b, data, dt)
+			value := initial
+			if err := stdjson.Unmarshal(data, &value); err != nil {
+				b.Fatal(err)
+			}
 		}
 	})
-}
-
-func UnmarshalOK[T DataType](t require.TestingT, data []byte, dt T) {
-	j := dt
-	assert.NoError(t, json.Unmarshal(data, &j), "unmarshal failed")
-	FieldsValue(t, j)
 }

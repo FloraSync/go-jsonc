@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jsonc
+package json
 
 import (
 	_ "embed"
+	stdjson "encoding/json"
+	"reflect"
 	"testing"
-
-	"github.com/marcozac/go-jsonc/internal/json"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -45,34 +43,58 @@ var (
 	_invalidChar = []byte("\xa5")
 )
 
-func FieldsValue[T DataType](t require.TestingT, j T) {
+func FieldsValue[T DataType](t testing.TB, j T) {
+	t.Helper()
 	switch j := any(j).(type) {
 	case Small:
 		var w Small
-		require.NoError(t, json.Unmarshal(_smallUncommented, &w), "unmarshal json without comments failed")
-		assert.Equal(t, w, j, "unmarshaled JSON is invalid")
+		mustStandardUnmarshal(t, _smallUncommented, &w)
+		if !reflect.DeepEqual(w, j) {
+			t.Fatalf("unmarshaled JSON = %#v, want %#v", j, w)
+		}
 		w.X = "x" // ensure fields are checked
-		assert.NotEqual(t, w, j, "not all fields were checked")
+		if reflect.DeepEqual(w, j) {
+			t.Fatal("test mutation did not change Small value")
+		}
 	case Medium:
 		var w Medium
-		require.NoError(t, json.Unmarshal(_mediumUncommented, &w), "unmarshal json without comments failed")
-		require.Equal(t, w, j, "unmarshaled JSON is invalid")
+		mustStandardUnmarshal(t, _mediumUncommented, &w)
+		if !reflect.DeepEqual(w, j) {
+			t.Fatal("unmarshaled medium JSON differs from strict fixture")
+		}
 		w.CSS.EditorSuggestInsertMode = "insert_replace" // ensure fields are checked
-		assert.NotEqual(t, w, j, "not all fields were checked")
+		if reflect.DeepEqual(w, j) {
+			t.Fatal("test mutation did not change Medium value")
+		}
 	case SmallNoCommentRunes:
 		var w SmallNoCommentRunes
-		require.NoError(t, json.Unmarshal(_smallNoCommentRunes, &w), "unmarshal json without comments failed")
-		assert.Equal(t, w, j, "unmarshaled JSON is invalid")
+		mustStandardUnmarshal(t, _smallNoCommentRunes, &w)
+		if !reflect.DeepEqual(w, j) {
+			t.Fatalf("unmarshaled JSON = %#v, want %#v", j, w)
+		}
 		w.X = "x" // ensure fields are checked
-		assert.NotEqual(t, w, j, "not all fields were checked")
+		if reflect.DeepEqual(w, j) {
+			t.Fatal("test mutation did not change SmallNoCommentRunes value")
+		}
 	case MediumNoCommentRunes:
 		var w MediumNoCommentRunes
-		require.NoError(t, json.Unmarshal(_mediumNoCommentRunes, &w), "unmarshal json without comments failed")
-		require.Equal(t, w, j, "unmarshaled JSON is invalid")
+		mustStandardUnmarshal(t, _mediumNoCommentRunes, &w)
+		if !reflect.DeepEqual(w, j) {
+			t.Fatal("unmarshaled medium JSON differs from strict fixture")
+		}
 		w.CSS.EditorSuggestInsertMode = "insert_replace" // ensure fields are checked
-		assert.NotEqual(t, w, j, "not all fields were checked")
+		if reflect.DeepEqual(w, j) {
+			t.Fatal("test mutation did not change MediumNoCommentRunes value")
+		}
 	default:
-		assert.Fail(t, "unexpected data type: %T", j)
+		t.Fatalf("unexpected data type %T", j)
+	}
+}
+
+func mustStandardUnmarshal(t testing.TB, data []byte, destination any) {
+	t.Helper()
+	if err := stdjson.Unmarshal(data, destination); err != nil {
+		t.Fatalf("encoding/json.Unmarshal() error = %v", err)
 	}
 }
 
@@ -82,7 +104,9 @@ func TestHasCommentRunes(t *testing.T) {
 		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.Want, HasCommentRunes(tt.Data))
+			if got := HasCommentRunes(tt.Data); got != tt.Want {
+				t.Fatalf("HasCommentRunes(%q) = %t, want %t", tt.Data, got, tt.Want)
+			}
 		})
 	}
 }
@@ -93,20 +117,35 @@ var hasCommentRunesTests = [...]struct {
 	Want bool
 }{
 	{"Small/Commented", _small, true},
-	{"Small/Uncommented", _smallUncommented, true},
+	{"Small/Uncommented", _smallUncommented, false},
 	{"Small/NoCommentRunes", _smallNoCommentRunes, false},
 	{"Medium/Commented", _medium, true},
-	{"Medium/Uncommented", _mediumUncommented, true},
+	{"Medium/Uncommented", _mediumUncommented, false},
 	{"Medium/NoCommentRunes", _mediumNoCommentRunes, false},
+	{"Line/Incomplete", []byte("//"), true},
+	{"Block/Incomplete", []byte("/*"), true},
+	{"LoneSlash", []byte("/"), false},
+	{"StrayCloser", []byte("*/"), false},
+	{"String/LineMarker", []byte(`{"s":"//"}`), false},
+	{"String/BlockMarker", []byte(`{"s":"/*"}`), false},
+	{"String/OddBackslashParity", []byte(`{"s":"\\\" // inside"}`), false},
+	{"String/EvenBackslashParity", []byte(`{"s":"\\\\" /* outside */}`), true},
+	{"Binary/OutsideThenComment", []byte{0xff, '/', '/', 'x'}, true},
 }
 
 func BenchmarkHasCommentRunes(b *testing.B) {
 	for _, tt := range hasCommentRunesTests {
 		tt := tt
 		b.Run(tt.Name, func(b *testing.B) {
+			if got := HasCommentRunes(tt.Data); got != tt.Want {
+				b.Fatalf("HasCommentRunes(%q) = %t, want %t", tt.Data, got, tt.Want)
+			}
+			b.ResetTimer()
 			b.RunParallel(func(p *testing.PB) {
 				for p.Next() {
-					assert.Equal(b, tt.Want, HasCommentRunes(tt.Data))
+					if got := HasCommentRunes(tt.Data); got != tt.Want {
+						b.Fatalf("HasCommentRunes(%q) = %t, want %t", tt.Data, got, tt.Want)
+					}
 				}
 			})
 		})

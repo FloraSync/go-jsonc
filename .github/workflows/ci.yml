@@ -1,76 +1,221 @@
 name: CI
+
 on:
   push:
     branches:
-      - 'main'
+      - main
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOWORK: 'off'
 
 jobs:
-  lint:
+  preflight:
+    name: preflight
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          go-version-file: 'go.mod'
+          persist-credentials: false
+      - name: Setup current Go 1.26
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: '1.26.x'
+          check-latest: true
           cache: false
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
+      - name: Print runtime identity
+        run: |
+          go version
+          go env GOOS GOARCH
+      - name: Install pinned verification tools
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          printf '%s\n' "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Run deterministic preflight
+        run: ./scripts/ci-preflight.sh
 
-  test:
+  runtime:
+    name: runtime (${{ matrix.name }})
+    needs: preflight
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        go: ['1.19', '1.20']
-        build-tags:
-          - ''
-          - 'jsoniter'
-          - 'go_json'
-          # Check conflicting build tags
-          - 'jsoniter,go_json'
+        include:
+          - name: linux-go-1.26.0
+            os: ubuntu-latest
+            go: '1.26.0'
+          - name: linux-go-1.26.x
+            os: ubuntu-latest
+            go: '1.26.x'
+          - name: macos-go-1.26.x
+            os: macos-latest
+            go: '1.26.x'
+          - name: windows-go-1.26.x
+            os: windows-latest
+            go: '1.26.x'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: ${{ matrix.go }}
-      - name: Test & generate coverage report
-        run: >-
-          go test -v -race ./...
-          -tags="${{ matrix.build-tags }}"
-          -coverpkg=./...
-          -covermode=atomic
-          -coverprofile=cover.out
-      - name: Upload coverage artifact
-        # Upload coverage only once (ubuntu-latest + go 1.20 + no build tags)
-        if: matrix.os == 'ubuntu-latest' && matrix.go == '1.20' && matrix.build-tags == ''
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage_report
-          path: cover.out
-          if-no-files-found: error
-          retention-days: 1
+          check-latest: ${{ matrix.go != '1.26.0' }}
+          cache: false
+      - name: Print runtime identity
+        run: |
+          go version
+          go env GOOS GOARCH
+      - name: Run ordinary suite uncached
+        run: go test -mod=readonly -count=1 ./...
 
-  coverage:
-    if: github.actor != 'dependabot[bot]'
-    needs: test
+  race-coverage:
+    name: race-coverage
+    needs: preflight
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Download coverage artifact
-        uses: actions/download-artifact@v3
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          name: coverage_report
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+          persist-credentials: false
+      - name: Setup current Go 1.26
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          go-version: '1.26.x'
+          check-latest: true
+          cache: false
+      - name: Print runtime identity
+        run: |
+          go version
+          go env GOOS GOARCH
+      - name: Run race stress
+        run: go test -mod=readonly -race -count=10 ./...
+      - name: Enforce atomic statement coverage
+        run: ./scripts/ci-coverage.sh
+      - name: Upload coverage evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-report
+          path: cover.out
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-compile:
+    name: cross-compile
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup current Go 1.26
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: '1.26.x'
+          check-latest: true
+          cache: false
+      - name: Print compiler identity
+        run: |
+          go version
+          go env GOOS GOARCH
+      - name: Compile all package tests for six no-CGO targets
+        run: ./scripts/ci-cross-compile.sh
+
+  coverage-report:
+    name: coverage-report
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
+    needs: race-coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - name: Download coverage evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: coverage-report
+      - name: Verify downloaded profile
+        run: test -s cover.out
+      - name: Report coverage to Codecov
+        if: env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        with:
+          files: cover.out
+          token: ${{ env.CODECOV_TOKEN }}
           verbose: true
           fail_ci_if_error: true
+
+  scheduled-deep:
+    name: scheduled-deep
+    if: github.event_name == 'schedule'
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup current Go 1.26
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: '1.26.x'
+          check-latest: true
+          cache: false
+      - name: Print runtime identity
+        run: |
+          go version
+          go env GOOS GOARCH
+      - name: Prepare diagnostic logs
+        run: mkdir -p .ci-artifacts
+      - name: Repeat deterministic suite
+        run: go test -mod=readonly -count=20 ./... 2>&1 | tee .ci-artifacts/repeated-tests.log
+      - name: Run bounded race stress
+        run: go test -mod=readonly -race -count=10 ./... 2>&1 | tee .ci-artifacts/race-stress.log
+      - name: Fuzz every exact target separately
+        run: ./scripts/ci-fuzz.sh run 2m 2>&1 | tee .ci-artifacts/fuzz.log
+      - name: Compile and smoke benchmarks
+        run: ./scripts/ci-benchmark-smoke.sh 2>&1 | tee .ci-artifacts/benchmarks.log
+      - name: Retain scheduled diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: scheduled-deep-logs
+          path: |
+            .ci-artifacts
+            testdata/fuzz
+          if-no-files-found: error
+          retention-days: 7

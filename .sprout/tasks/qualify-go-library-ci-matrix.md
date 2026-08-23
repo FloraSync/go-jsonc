@@ -336,6 +336,17 @@ portability, correctness, security, and regression contracts.
   repository-setting mutation, advisory, CVE request, notification, or external
   contact was created during this continuation.
 
+### 2026-08-22 hosted-evidence blocker update
+
+- Created temporary branch `ci-evidence-qualify-go-library-ci-matrix` at commit
+  `3591e74` with the current candidate state used for local verification.
+- A push attempt for that branch was blocked by local policy because it would
+  export disclosure-bearing security material without explicit non-public approval.
+- As a result, no hosted workflow run for this exact revision exists yet; the
+  remaining required evidence is:
+  - Hosted `CI` run URL (required macOS and Windows rows).
+  - Hosted required-check-name set for the exact revision.
+
 ## Outcome and follow-ups
 
 Status: **locally implemented and consumer-safety proof passed; still open

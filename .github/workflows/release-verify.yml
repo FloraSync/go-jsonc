@@ -1,0 +1,77 @@
+name: Release candidate verification
+
+on:
+  workflow_call:
+    inputs:
+      candidate_tag:
+        required: true
+        type: string
+      candidate_sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: release-candidate-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact candidate without credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.candidate_sha }}
+      - name: Assert checkout identity
+        env:
+          RELEASE_TAG: ${{ inputs.candidate_tag }}
+          RELEASE_SHA: ${{ inputs.candidate_sha }}
+        run: ./scripts/release-validate.sh local
+      - name: Setup current Go 1.26
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: '1.26.x'
+          check-latest: true
+          cache: false
+      - name: Print candidate and runtime identities
+        run: |
+          printf 'candidate tag=%s sha=%s\n' '${{ inputs.candidate_tag }}' '${{ inputs.candidate_sha }}'
+          go version
+          go env GOOS GOARCH
+      - name: Install pinned verification tools
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          printf '%s\n' "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Run deterministic preflight
+        run: ./scripts/ci-preflight.sh
+      - name: Run ordinary suite uncached
+        run: go test -mod=readonly -count=1 ./...
+      - name: Run race stress
+        run: go test -mod=readonly -race -count=10 ./...
+      - name: Enforce atomic statement coverage
+        env:
+          COVERAGE_OUTPUT: ${{ runner.temp }}/cover.out
+        run: ./scripts/ci-coverage.sh
+      - name: Cross-compile six no-CGO test targets
+        run: ./scripts/ci-cross-compile.sh
+      - name: Verify exact fuzz inventory
+        run: ./scripts/ci-fuzz.sh verify
+      - name: Compile and smoke benchmarks
+        run: ./scripts/ci-benchmark-smoke.sh
+      - name: Install pinned GoReleaser
+        env:
+          GOBIN: ${{ runner.temp }}/bin
+        run: |
+          go install github.com/goreleaser/goreleaser/v2@v2.12.7
+          printf '%s\n' "${GOBIN}" >> "$GITHUB_PATH"
+      - name: Check release configuration
+        run: goreleaser check
+      - name: Build no-publish source-only snapshot
+        run: ./scripts/release-snapshot.sh

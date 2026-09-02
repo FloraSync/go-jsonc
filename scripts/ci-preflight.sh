@@ -40,7 +40,7 @@ if [[ -n "$unformatted" ]]; then
   exit 1
 fi
 
-actionlint .github/workflows/ci.yml
+actionlint
 go vet ./...
 golangci-lint run
 govulncheck ./...

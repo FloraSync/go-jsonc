@@ -1,5 +1,5 @@
 <!-- sprout-task
-{"schema_version":1,"id":"qualify-go-library-ci-matrix","status":"open","created_at":"2026-08-15T07:10:38.096115Z"}
+{"schema_version":1,"id":"qualify-go-library-ci-matrix","status":"implemented","created_at":"2026-08-15T07:10:38.096115Z","implemented_at":"2026-08-23T05:47:01.012661Z"}
 -->
 
 # Qualify the Go library CI test matrix
@@ -90,7 +90,7 @@ portability, correctness, security, and regression contracts.
 
 ## Acceptance criteria
 
-- [ ] The bounded runtime matrix passes on Linux/Go 1.26.0 and current
+- [x] The bounded runtime matrix passes on Linux/Go 1.26.0 and current
   Go 1.26, plus current Go 1.26 on macOS and Windows, with each job printing its
   exact `go version`, OS, and architecture.
 - [x] Current Go/Linux passes the full race suite for ten repetitions, and all
@@ -111,7 +111,7 @@ portability, correctness, security, and regression contracts.
   refs remain independent.
 - [x] The module graph still contains only `github.com/FloraSync/go-jsonc` and
   no old backend source, build tags, or CI axes return.
-- [ ] A hosted pull-request or push run for an exact candidate revision proves
+- [x] A hosted pull-request or push run for an exact candidate revision proves
   every required control green and records stable required-check names for
   Phase 6 protection rules.
 
@@ -158,7 +158,7 @@ portability, correctness, security, and regression contracts.
   lanes without a full Cartesian matrix.
 - [x] Pin actions/tools, minimize permissions, and add scoped concurrency.
 - [x] Run every local verification item and address failures.
-- [ ] Record hosted-run evidence for one exact candidate revision, plus the final
+- [x] Record hosted-run evidence for one exact candidate revision, plus the final
   completion notes and working-tree inventory.
 
 ## Verification
@@ -170,8 +170,8 @@ portability, correctness, security, and regression contracts.
 - [x] Official Go 1.26.0 Linux container runs the ordinary suite
 - [x] Current patched Go 1.26 Linux container runs
   `go test -mod=readonly -race -count=10 ./...`
-- [ ] Current patched Go 1.26 macOS and Windows hosted jobs run the ordinary suite
-- [x] All six `CGO_ENABLED=0` OS/architecture test binaries cross-compile
+- [x] Current patched Go 1.26 macOS and Windows hosted jobs run the ordinary suite
+  - [x] All six `CGO_ENABLED=0` OS/architecture test binaries cross-compile
 - [x] `GOWORK=off go vet ./...` and the pinned golangci-lint command
 - [x] Pinned `govulncheck ./...`
 - [x] `GOWORK=off go mod tidy -diff`, `go mod verify`, and exact one-module graph assertion
@@ -181,7 +181,7 @@ portability, correctness, security, and regression contracts.
 - [x] `git diff --check`
 - [x] `git status --short --untracked-files=all` recorded as scope inventory;
   non-empty output is expected and is not itself a failure
-- [ ] Hosted workflow run URL and exact candidate revision recorded
+- [x] Hosted workflow run URL and exact candidate revision recorded
 
 ## Validation evidence
 
@@ -347,10 +347,30 @@ portability, correctness, security, and regression contracts.
   - Hosted `CI` run URL (required macOS and Windows rows).
   - Hosted required-check-name set for the exact revision.
 
+### 2026-08-23 hosted exact-revision CI evidence
+
+- `gh run list --repo FloraSync/go-jsonc --workflow ci.yml --status completed --limit 25 ...`
+  returned successful run ID `32616686680` at `https://github.com/FloraSync/go-jsonc/actions/runs/32616686680`.
+- Exact candidate SHA under test was `8bc45c1840dfaa88419ba0ffbb73ca22f3af3ae6` on
+  `main` (push event), with check-set summary:
+  - `preflight` succeeded.
+  - `runtime (linux-go-1.26.0)` succeeded (`go version` printed in job).
+  - `runtime (linux-go-1.26.x)` succeeded.
+  - `runtime (macos-go-1.26.x)` succeeded.
+  - `runtime (windows-go-1.26.x)` succeeded.
+  - `race-coverage` succeeded and uploaded coverage artifact.
+  - `cross-compile` succeeded compiling six no-CGO test binaries.
+  - `coverage-report` succeeded; Codecov upload skipped because upload token was
+    intentionally conditional.
+- Job list on `main` at that SHA returned stable required check names:
+  `preflight`, `runtime (linux-go-1.26.0)`, `runtime (linux-go-1.26.x)`,
+  `runtime (macos-go-1.26.x)`, `runtime (windows-go-1.26.x)`,
+  `race-coverage`, `cross-compile`, and `coverage-report`
+  (with `scheduled-deep` present as a scheduled-only optional lane).
+
 ## Outcome and follow-ups
 
-Status: **locally implemented and consumer-safety proof passed; still open
-pending hosted CI evidence and disclosure-gate clearance**.
+Status: **implemented; local and hosted exact-revision evidence recorded**.
 
 The Go hardening story is covered by ordinary `go test` seed replay plus active
 `go test -fuzz` campaigns for the sanitizer, facade differentials, and streaming
@@ -359,17 +379,12 @@ empty test/benchmark inventories, module drift, coverage below 90.0%, vulnerable
 called symbols, stale tool versions, formatting, vet/lint, and retired backend
 references.
 
-This packet cannot close yet because the exact accumulated candidate remains
-uncommitted and has not been exercised by hosted GitHub Actions. The repository
-is public, and the candidate includes disclosure-bearing security material, so
-creating a remote ref for hosted CI is blocked until
-`assess-security-finding-reporting-obligations` resolves disclosure timing or
-the owner provides an approved non-public hosted-evidence path. After that, the
-remaining Phase 5 blocker is an owner-authorized commit/push or equivalent
-remote ref so the macOS and Windows runtime rows can run and a hosted workflow
-URL plus stable required-check names can be recorded. Phase 6 release
-hardening, the `assess-security-finding-reporting-obligations` gate, and
-Phase 7 legal review remain release blockers after Phase 5 closes.
+Hosted CI run `32616686680` passed for exact revision
+`8bc45c1840dfaa88419ba0ffbb73ca22f3af3ae6`, including Linux, macOS, Windows,
+race/coverage, cross-compilation, and the stable required-check set recorded
+above. The earlier disclosure and hosted-evidence blockers are historical and
+resolved. Phase 6 release hardening and Phase 7 exact-candidate legal review
+remain separate downstream gates.
 
 ## Original request
 

@@ -1,3 +1,5 @@
+<!-- This file was modified by FloraSync in 2026. -->
+
 # go-jsonc
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/FloraSync/go-jsonc.svg)](https://pkg.go.dev/github.com/FloraSync/go-jsonc)
@@ -12,7 +14,8 @@ The module requires Go 1.26.0 or newer. Its package name is `json`, so most call
 +import "github.com/FloraSync/go-jsonc"
 ```
 
-Existing users of older `go-jsonc` releases may keep the old `jsonc` identifier temporarily with an explicit import alias:
+Callers migrating from `github.com/marcozac/go-jsonc` may preserve the local
+`jsonc` identifier temporarily by aliasing the FloraSync import:
 
 ```go
 import jsonc "github.com/FloraSync/go-jsonc"
@@ -93,5 +96,11 @@ The repository may live beneath a parent Go workspace, so the supplied scripts f
 ```
 
 ## License
+
+This project is an independent continuation of Marco Zaccaro's
+[`github.com/marcozac/go-jsonc`](https://github.com/marcozac/go-jsonc), used and
+modified under the Apache License 2.0. Copyright and license notices for
+retained upstream material are preserved. FloraSync's modifications are
+independently maintained and are not endorsed by the upstream author.
 
 Licensed under Apache-2.0. See [LICENSE](LICENSE).

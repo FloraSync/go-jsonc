@@ -1,3 +1,4 @@
+# This file was modified by FloraSync in 2026.
 name: Release
 
 on:
@@ -93,7 +94,7 @@ jobs:
         env:
           GOBIN: ${{ runner.temp }}/bin
         run: |
-          go install github.com/goreleaser/goreleaser/v2@v2.12.7
+          go install github.com/goreleaser/goreleaser/v2@v2.17.1
           printf '%s\n' "${GOBIN}" >> "$GITHUB_PATH"
       - name: Publish once from the verified tag
         env:

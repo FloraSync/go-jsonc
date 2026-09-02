@@ -39,8 +39,11 @@ jobs:
           check-latest: true
           cache: false
       - name: Print candidate and runtime identities
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
         run: |
-          printf 'candidate tag=%s sha=%s\n' '${{ inputs.candidate_tag }}' '${{ inputs.candidate_sha }}'
+          printf 'candidate tag=%s sha=%s\n' "$CANDIDATE_TAG" "$CANDIDATE_SHA"
           go version
           go env GOOS GOARCH
       - name: Install pinned verification tools
@@ -65,13 +68,18 @@ jobs:
         run: ./scripts/ci-fuzz.sh verify
       - name: Compile and smoke benchmarks
         run: ./scripts/ci-benchmark-smoke.sh
+      - name: Exercise release identity failure and retry paths
+        run: ./scripts/release-validate-test.sh
       - name: Install pinned GoReleaser
         env:
           GOBIN: ${{ runner.temp }}/bin
         run: |
-          go install github.com/goreleaser/goreleaser/v2@v2.12.7
+          go install github.com/goreleaser/goreleaser/v2@v2.17.1
           printf '%s\n' "${GOBIN}" >> "$GITHUB_PATH"
       - name: Check release configuration
         run: goreleaser check
       - name: Build no-publish source-only snapshot
+        env:
+          RELEASE_TAG: ${{ inputs.candidate_tag }}
+          RELEASE_SHA: ${{ inputs.candidate_sha }}
         run: ./scripts/release-snapshot.sh

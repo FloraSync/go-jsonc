@@ -1,11 +1,24 @@
+# This file was modified by FloraSync in 2026.
 version: 2
 project_name: go-jsonc
 
 builds:
   - skip: true
 
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}-{{ .Version }}'
+  format: tar.gz
+  prefix_template: '{{ .ProjectName }}-{{ .Version }}/'
+  files:
+    - .editorconfig
+    - .gitattributes
+    - .gitignore
+
+checksum:
+  name_template: checksums.txt
+
 changelog:
-  skip: false
   use: git
   sort: asc
   groups:

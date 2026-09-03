@@ -17,8 +17,8 @@ FloraSync JSONC Profile v1 and stable `encoding/json` facade.
   `docs/features/define-jsonc-stdlib-compatibility-contracts.md`.
 - The owner subsequently fixed the minimum supported toolchain at Go 1.26.0.
   Go 1.25 and earlier are intentionally unsupported.
-- The ambient `/Users/shoe/Code/FloraSync/go.work` does not include this module;
-  all module-local Go commands must run with `GOWORK=off`.
+- The ambient parent workspace does not include this module; all module-local
+  Go commands must run with `GOWORK=off`.
 - Sprout files are working-state artifacts and are not intended for the product
   commit.
 - The coordinated hardening program intentionally accumulates changes in a

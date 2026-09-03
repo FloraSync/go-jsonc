@@ -1,0 +1,11 @@
+go-jsonc
+
+This distribution is an independent continuation of Marco Zaccaro's
+github.com/marcozac/go-jsonc at commit
+6b4edeed9e4e5ee02779a6e55cbffd8ed4fcb783 (upstream main as verified on
+2026-09-02). Retained and modified portions of that work are used under the
+Apache License, Version 2.0, and preserve their applicable copyright and
+license notices.
+
+FloraSync maintains this continuation independently. It is not endorsed by the
+upstream author.

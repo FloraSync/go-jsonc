@@ -32,26 +32,33 @@ jobs:
           RELEASE_TAG: ${{ inputs.candidate_tag }}
           RELEASE_SHA: ${{ inputs.candidate_sha }}
         run: ./scripts/release-validate.sh local
-      - name: Setup current Go 1.26
+      - name: Setup current Go 1.27
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version: '1.26.x'
+          go-version: '1.27.x'
           check-latest: true
           cache: false
       - name: Print candidate and runtime identities
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
         run: |
-          printf 'candidate tag=%s sha=%s\n' '${{ inputs.candidate_tag }}' '${{ inputs.candidate_sha }}'
+          printf 'candidate tag=%s sha=%s\n' "$CANDIDATE_TAG" "$CANDIDATE_SHA"
           go version
           go env GOOS GOARCH
       - name: Install pinned verification tools
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.0
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
           go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           printf '%s\n' "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Run deterministic preflight
         run: ./scripts/ci-preflight.sh
       - name: Run ordinary suite uncached
+        run: go test -mod=readonly -count=1 ./...
+      - name: Run legacy JSON engine compatibility control
+        env:
+          GOEXPERIMENT: nojsonv2
         run: go test -mod=readonly -count=1 ./...
       - name: Run race stress
         run: go test -mod=readonly -race -count=10 ./...
@@ -65,13 +72,18 @@ jobs:
         run: ./scripts/ci-fuzz.sh verify
       - name: Compile and smoke benchmarks
         run: ./scripts/ci-benchmark-smoke.sh
+      - name: Exercise release identity failure and retry paths
+        run: ./scripts/release-validate-test.sh
       - name: Install pinned GoReleaser
         env:
           GOBIN: ${{ runner.temp }}/bin
         run: |
-          go install github.com/goreleaser/goreleaser/v2@v2.12.7
+          go install github.com/goreleaser/goreleaser/v2@v2.17.1
           printf '%s\n' "${GOBIN}" >> "$GITHUB_PATH"
       - name: Check release configuration
         run: goreleaser check
       - name: Build no-publish source-only snapshot
+        env:
+          RELEASE_TAG: ${{ inputs.candidate_tag }}
+          RELEASE_SHA: ${{ inputs.candidate_sha }}
         run: ./scripts/release-snapshot.sh

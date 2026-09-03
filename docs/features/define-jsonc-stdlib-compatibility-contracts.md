@@ -70,23 +70,29 @@ tests, and explicit approval before adoption.
 
 #### Go standard library
 
-The stable compatibility reference is default `encoding/json` in Go 1.26.6,
-whose public surface is unchanged from Go 1.20. The conditional
-`GOEXPERIMENT=jsonv2` surface is explicitly out of scope until it becomes a
-stable Go API.
+The v1 compatibility reference is default `encoding/json` on the minimum Go
+1.26 line. Go 1.27 made `encoding/json/v2` and `encoding/json/jsontext` stable
+and reimplemented the v1 package on the new engine while preserving v1
+behavior. The go-jsonc v1 facade therefore remains bound to the v1 API and
+semantics. Go 1.27 callers may explicitly compose `Sanitize` with
+`encoding/json/v2` when they want v2 semantics; that interoperation is covered
+by version-gated tests.
 
 - [Go 1.26.6 stream API](https://go.googlesource.com/go/+/refs/tags/go1.26.6/src/encoding/json/stream.go)
 - [Go 1.26.6 decode API](https://go.googlesource.com/go/+/refs/tags/go1.26.6/src/encoding/json/decode.go)
 - [Go 1.26.6 encode API](https://go.googlesource.com/go/+/refs/tags/go1.26.6/src/encoding/json/encode.go)
 - [Go 1.26.6 scanner and Valid](https://go.googlesource.com/go/+/refs/tags/go1.26.6/src/encoding/json/scanner.go)
 - [Go 1.26.6 formatting API](https://go.googlesource.com/go/+/refs/tags/go1.26.6/src/encoding/json/indent.go)
+- [Go 1.27 release notes](https://go.dev/doc/go1.27#json_v2)
+- [encoding/json/v2 migration guide](https://go.dev/doc/jsonv2-migration)
 
 Supported release policy: Go 1.26.0 is the minimum baseline and the module
 SHALL declare `go 1.26.0`. Go 1.25 and earlier are deliberately unsupported;
 the implementation must not carry compatibility code, build tags, CI jobs, or
 dependency constraints for those legacy releases. Verification SHALL cover
-the exact Go 1.26.0 baseline and the current patched Go 1.26 toolchain. Future
-stable Go releases are supported subject to the stable API compatibility gate.
+the exact Go 1.26.0 baseline, the current patched Go 1.26 toolchain, and current
+Go 1.27 across the supported CI operating systems. Future stable Go releases
+are supported subject to the stable API compatibility gate.
 
 ### FloraSync JSONC Profile v1
 
@@ -492,8 +498,9 @@ Approval of this story accepts all of the following together:
    import-string-only migration. Existing callers relying on the implicit
    identifier `jsonc` will need an import alias or call-site rename.
 6. **Go support:** require Go 1.26.0 or newer, carry no pre-1.26 compatibility
-   baggage, test the exact 1.26.0 baseline plus the current patched 1.26
-   toolchain, and exclude `GOEXPERIMENT=jsonv2` until stable.
+   baggage, test the exact 1.26.0 baseline plus current Go 1.26 and Go 1.27,
+   retain the v1 facade contract, and test explicit `encoding/json/v2`
+   composition on Go 1.27 without implicitly changing semantic versions.
 7. **Zero dependencies:** remove every non-standard-library Go module and all
    alternative backend build tags from the shipping module.
 8. **Compatibility meaning:** guarantee documented source/behavior

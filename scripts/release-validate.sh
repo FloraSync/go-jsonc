@@ -25,6 +25,30 @@ if ! printf '%s\n' "$tag" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-
   echo "RELEASE_TAG must be a canonical v-prefixed SemVer tag" >&2
   exit 1
 fi
+prerelease=${tag#*-}
+if [ "$prerelease" != "$tag" ]; then
+  remaining=$prerelease
+  while :; do
+    identifier=${remaining%%.*}
+    case "$identifier" in
+      *[!0-9]* | 0 | [1-9]*) ;;
+      *)
+        echo "numeric SemVer prerelease identifiers cannot contain leading zeroes" >&2
+        exit 1
+        ;;
+    esac
+    case "$remaining" in
+      *.*) remaining=${remaining#*.} ;;
+      *) break ;;
+    esac
+  done
+fi
+
+release_notes="docs/releases/$tag.md"
+if [ ! -s "$release_notes" ]; then
+  echo "release notes are missing or empty: $release_notes" >&2
+  exit 1
+fi
 
 if ! printf '%s\n' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then
   echo "RELEASE_SHA must be a full lowercase commit SHA" >&2
@@ -37,7 +61,7 @@ if [ "$head_sha" != "$sha" ]; then
   exit 1
 fi
 
-tag_object=$(git rev-parse "refs/tags/$tag^{commit}" 2>/dev/null || true)
+tag_object=$(git rev-parse --verify "refs/tags/$tag^{commit}" 2>/dev/null || true)
 if [ "$tag_object" != "$sha" ]; then
   echo "tag $tag resolves to ${tag_object:-nothing}, expected $sha" >&2
   exit 1
@@ -45,10 +69,10 @@ fi
 
 if [ "$mode" = remote ]; then
   clearance=${LEGAL_CLEARANCE_REF:-}
-  if [ -z "$clearance" ]; then
-    echo "LEGAL_CLEARANCE_REF is required" >&2
-    exit 1
-  fi
+  case "$clearance" in
+    *[![:space:]]*) ;;
+    *) echo "LEGAL_CLEARANCE_REF is required" >&2; exit 1 ;;
+  esac
 
   main_sha=$(git ls-remote --exit-code origin refs/heads/main | awk '{print $1}')
   remote_tag=$(git ls-remote --exit-code origin "refs/tags/$tag" | awk '{print $1}')

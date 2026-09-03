@@ -23,7 +23,6 @@ tmp/
 # IDE
 .idea/
 .vscode/*
-!.vscode/settings.json
 
 # Misc
 *~

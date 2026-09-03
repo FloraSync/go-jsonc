@@ -21,8 +21,8 @@ fi
 printf '%s\n' "$actionlint_version"
 
 golangci_version="$(golangci-lint version 2>&1)"
-if [[ "$golangci_version" != *'version 2.12.0 '* ]]; then
-  printf 'golangci-lint version mismatch; require 2.12.0, got:\n%s\n' "$golangci_version" >&2
+if [[ "$golangci_version" != *'version 2.13.2 '* ]]; then
+  printf 'golangci-lint version mismatch; require 2.13.2, got:\n%s\n' "$golangci_version" >&2
   exit 1
 fi
 printf '%s\n' "$golangci_version"
@@ -40,7 +40,7 @@ if [[ -n "$unformatted" ]]; then
   exit 1
 fi
 
-actionlint .github/workflows/ci.yml
+actionlint
 go vet ./...
 golangci-lint run
 govulncheck ./...

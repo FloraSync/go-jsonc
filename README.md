@@ -1,3 +1,5 @@
+<!-- This file was modified by FloraSync in 2026. -->
+
 # go-jsonc
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/FloraSync/go-jsonc.svg)](https://pkg.go.dev/github.com/FloraSync/go-jsonc)
@@ -12,7 +14,8 @@ The module requires Go 1.26.0 or newer. Its package name is `json`, so most call
 +import "github.com/FloraSync/go-jsonc"
 ```
 
-Existing users of older `go-jsonc` releases may keep the old `jsonc` identifier temporarily with an explicit import alias:
+Callers migrating from `github.com/marcozac/go-jsonc` may preserve the local
+`jsonc` identifier temporarily by aliasing the FloraSync import:
 
 ```go
 import jsonc "github.com/FloraSync/go-jsonc"
@@ -73,6 +76,31 @@ normalized, err := json.Sanitize(input)
 
 Recognized comments are replaced with same-length whitespace and accepted trailing commas with one space. The input is never mutated and output offsets stay aligned with the original bytes. `ErrInvalidUTF8`, `ErrUnterminatedBlockComment`, and `JSONCSyntaxError` describe JSONC-specific lexical failures.
 
+## Go 1.27 and encoding/json/v2
+
+The v1 module continues to expose the stable `encoding/json` v1 contract on Go
+1.26 and Go 1.27. Go 1.27 implements that standard package on the new engine
+while preserving v1 behavior.
+
+Applications that deliberately adopt Go 1.27's stricter
+[`encoding/json/v2`](https://pkg.go.dev/encoding/json/v2) semantics can compose
+it with `Sanitize` without waiting for a second go-jsonc API:
+
+```go
+normalized, err := json.Sanitize(input)
+if err != nil {
+    return err
+}
+if err := jsonv2.Unmarshal(normalized, &config); err != nil {
+    return err
+}
+```
+
+Here `json` is `github.com/FloraSync/go-jsonc` and `jsonv2` is
+`encoding/json/v2`. This explicit boundary preserves v2 defaults such as
+rejecting duplicate object names and invalid UTF-8. A future go-jsonc v2 API can
+build on the same sanitizer boundary without changing v1 semantics.
+
 ## Compatibility and security notes
 
 - Strict slice input is passed to `encoding/json` without allocating a
@@ -94,4 +122,11 @@ The repository may live beneath a parent Go workspace, so the supplied scripts f
 
 ## License
 
-Licensed under Apache-2.0. See [LICENSE](LICENSE).
+This project is an intentional, independent continuation of Marco Zaccaro's
+[`github.com/marcozac/go-jsonc`](https://github.com/marcozac/go-jsonc), used and
+modified under the Apache License 2.0. The upstream main branch has had no
+source change since August 2023. Copyright and license notices for retained
+upstream material are preserved. FloraSync's continuation is independently
+maintained and is not endorsed by the upstream author.
+
+Licensed under Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

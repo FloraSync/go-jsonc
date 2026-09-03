@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# This file was modified by FloraSync in 2026.
 
 # Run all benchmarks against the standard-library facade.
 set -euo pipefail

@@ -211,7 +211,8 @@ against the approved FloraSync profile and `encoding/json` semantics.
   - `docs/features/fuzz-jsonc-adversarial-inputs.md` (promoted upon close)
 - Preserved concurrent and working-tree artifacts:
   - Tracked modifications/deletions from prior phases: `M .github/workflows/ci.yml`, `M .golangci.yml`, `M README.md`, `M benchmark_uncommented_test.go`, `M benchmarks/README.md`, `D benchmarks/*.txt`, `M example_test.go`, `M go.mod`, `D go.sum`, `D internal/json/*`, `D jsonc.go`, `M jsonc_test.go`, `M sanitize_test.go`, `M scripts/*.sh`, `M unmarshal_test.go`.
-  - Untracked working state and open tasks: `.agents/skills/sprout/SKILL.md`, `.hermes/plans/*`, `.sprout/config.json`, `.sprout/research/node-jsonc-parser-implementation-map.md`, `.sprout/tasks/assess-security-finding-reporting-obligations.md`, `.sprout/tasks/complete-final-release-legal-review.md`, `.sprout/tasks/harden-initial-release-pipeline.md`, `.sprout/tasks/qualify-go-library-ci-matrix.md`, `AGENTS.md`, `api_compat_test.go`, `decoder.go`, `decoder_test.go`, `doc.go`, `docs/features/*.md`, `docs/security/findings/*.md`, `facade.go`, `facade_test.go`, `sanitize.go`, `security_test.go`, `stream_normalizer.go`.
+  - Concurrent implementation, task, research, and agent-working artifacts were
+    preserved for their owning phases and were not attributed to Phase 4.
 
 ## Outcome and follow-ups
 

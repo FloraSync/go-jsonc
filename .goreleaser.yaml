@@ -1,0 +1,41 @@
+# This file was modified by FloraSync in 2026.
+version: 2
+project_name: go-jsonc
+
+builds:
+  - skip: true
+
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}-{{ .Version }}'
+  format: tar.gz
+  prefix_template: '{{ .ProjectName }}-{{ .Version }}/'
+  files:
+    - .editorconfig
+    - .gitattributes
+    - .gitignore
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: git
+  sort: asc
+  groups:
+    - title: BREAKING CHANGES
+      regexp: '^(.*)!:'
+      order: 0
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Bug fixes'
+      regexp: '^.*?(bug|fix)(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+  filters:
+    exclude:
+      - '^docs(\(.*\))?:'
+      - '^ci(\(.*\))?:'
+      - '^Merge'
+      - typo

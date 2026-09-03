@@ -1,0 +1,46 @@
+# This file was modified by FloraSync in 2026.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - depguard
+    - dogsled
+    - dupl
+    - errcheck
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unconvert
+    - unused
+    - whitespace
+  settings:
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: io/ioutil
+              desc: Use io instead of the deprecated io/ioutil package.
+    dupl:
+      threshold: 200
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - gocritic
+          - gosec
+          - staticcheck
+      - path: facade\.go
+        text: "SA1019:"
+        linters:
+          - staticcheck
+
+issues:
+  max-same-issues: 0

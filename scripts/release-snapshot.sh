@@ -16,7 +16,8 @@ if [ "$version" != "v2.17.1" ]; then
 fi
 
 "$repo_root/scripts/release-validate.sh" local
-goreleaser release --snapshot --clean
+release_notes="docs/releases/${RELEASE_TAG}.md"
+goreleaser release --snapshot --clean --release-notes "$release_notes"
 
 # Adding root dotfiles to the source archive makes GoReleaser retain its
 # pre-injection archive as an implementation-detail backup. It is not a release

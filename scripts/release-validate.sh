@@ -44,6 +44,12 @@ if [ "$prerelease" != "$tag" ]; then
   done
 fi
 
+release_notes="docs/releases/$tag.md"
+if [ ! -s "$release_notes" ]; then
+  echo "release notes are missing or empty: $release_notes" >&2
+  exit 1
+fi
+
 if ! printf '%s\n' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then
   echo "RELEASE_SHA must be a full lowercase commit SHA" >&2
   exit 1

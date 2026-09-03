@@ -48,7 +48,11 @@ git init -q "$seed"
 git -C "$seed" config user.name 'Release Test'
 git -C "$seed" config user.email 'release-test@example.invalid'
 printf 'release validation fixture\n' >"$seed/fixture.txt"
-git -C "$seed" add fixture.txt
+mkdir -p "$seed/docs/releases"
+for release_tag in v0.2.0 v0.2.0-rc.1 v0.3.0 v9.0.0; do
+  printf '# %s test notes\n' "$release_tag" >"$seed/docs/releases/$release_tag.md"
+done
+git -C "$seed" add fixture.txt docs/releases
 git -C "$seed" commit -q -m 'initial candidate'
 git -C "$seed" branch -M main
 main_sha=$(git -C "$seed" rev-parse HEAD)
@@ -116,6 +120,7 @@ expect_fail 'historical tag reuse' 'historical tag v0.1.0 cannot be reused' vali
 expect_fail 'abbreviated commit' 'full lowercase commit SHA' validate_local v0.2.0 "${main_sha%????????}"
 expect_fail 'cross-SHA checkout' "checked out $main_sha, expected $side_sha" validate_local v0.2.0 "$side_sha"
 expect_fail 'missing tag' 'tag v9.0.0 resolves to nothing' validate_local v9.0.0 "$main_sha"
+expect_fail 'missing release notes' 'release notes are missing or empty' validate_local v0.4.0 "$main_sha"
 expect_pass 'unused remote tag on main' validate_remote v0.2.0 "$main_sha" clearance-123 404
 expect_fail 'blank legal clearance' 'LEGAL_CLEARANCE_REF is required' validate_remote v0.2.0 "$main_sha" '   ' 404
 expect_fail 'already-published release' 'release v0.2.0 already exists' validate_remote v0.2.0 "$main_sha" clearance-123 200

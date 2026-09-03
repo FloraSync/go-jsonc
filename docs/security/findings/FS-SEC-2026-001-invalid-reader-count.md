@@ -136,11 +136,10 @@ distribution or deployment, conforming-reader reachability, exploitation,
 customer commitments, insurance requirements, regulated interests, or a
 material candidate change reopens that point-in-time determination.
 
-The final release gate
-[`complete-final-release-legal-review`](../../features/complete-final-release-legal-review.md)
-also requires this reporting review to close and all required actions to be
-resolved. Privileged or sensitive advice stays outside repository files; only
-an approved non-privileged disposition may be recorded here.
+The final release gate `complete-final-release-legal-review` also requires this
+reporting review to close and all required actions to be resolved. Privileged
+or sensitive advice stays outside repository files; only an approved
+non-privileged disposition may be recorded here.
 
 ## Release-manifest disposition note
 
@@ -154,4 +153,3 @@ an approved non-privileged disposition may be recorded here.
 
 - [`harden-jsonc-security-and-supply-chain`](../../features/harden-jsonc-security-and-supply-chain.md)
 - [`assess-security-finding-reporting-obligations`](../../features/assess-security-finding-reporting-obligations.md)
-- [`complete-final-release-legal-review`](../../features/complete-final-release-legal-review.md)

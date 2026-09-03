@@ -99,4 +99,5 @@ jobs:
       - name: Publish once from the verified tag
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: goreleaser release --clean
+          RELEASE_NOTES_PATH: docs/releases/${{ needs.identify.outputs.tag }}.md
+        run: goreleaser release --clean --release-notes "$RELEASE_NOTES_PATH"
